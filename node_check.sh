@@ -36,7 +36,8 @@ maxIOAvgquSize=5
 maxIOAwait=100
 #时间差阈值,单位秒(s)
 maxTimeDiff=1
-
+#定义iostat等检查时间，单位秒
+maxCheckTime=5
 
 #定义日志的最大字节数，20480B=20K
 checkLogSize(){
@@ -105,7 +106,7 @@ fi
 }
     #检查CPU软中断
 check_cpuSI(){
-mpstat -P ALL 1 30  1>$healthLogDir/mpstat-$currentDay.log
+mpstat -P ALL 1 $maxCheckTime  1>$healthLogDir/mpstat-$currentDay.log
 mpResult=$(cat $healthLogDir/mpstat-$currentDay.log |grep -v -E "^$|%soft|_x86_64" |awk -v si=$maxcpuSI '$(NF-4)>si {print}')
 if [[ -z $mpResult ]];then
   echo -e "[INFO]CPUSI_the node cpu softinterrupt is OK\n"
@@ -134,7 +135,7 @@ DISKS=$(ls /dev/sd[a-z] /dev/vd[a-z]  2>/dev/null)
 for d in $DISKS
   do
 	export logFileName=$(echo "`echo $d|awk -F'/' '{print $NF}'`-`date +%F`")
-    iostat -x -d $d 1 30  1>/tmp/healthCheck/$logFileName.log
+    iostat -x -d $d 1 $maxCheckTime  1>/tmp/healthCheck/$logFileName.log
 	cd /tmp/healthCheck
 	#maxReadIOPS=$(cat $logFileName.log|grep -v "_x86_64_" |awk '{print $4}'  |grep -v -E '^$|r\/s'|sort  -nr|head -n1 )
 	#avgReadIOPS=$(cat $logFileName.log|grep -v "_x86_64_" |awk '{print $4}'|grep -v -E '^$|r\/s'|awk '{sum+=$1} END {print sum/NR}')
@@ -166,8 +167,9 @@ for d in $DISKS
 
 	#输出网卡情况,网卡不是eth开头时修改正则匹配
 check_nic(){
-NETDEV=$(ifconfig  -a |grep  -E  -o "^eth[0-9]*|^bond[0-9]*|^ens[0-9]*")
-sar -n DEV 1  30 1>$healthLogDir/netStatus-$currentDay.log
+#NETDEV=$(ifconfig  -a |grep  -E  -o "^eth[0-9]*|^bond[0-9]*|^ens[0-9]*")
+NETDEV=$(ip r|grep -v br_bond|grep -E -o "eth[0-9]*|bond[0-9]*"|sort -u)
+sar -n DEV 1  $maxCheckTime 1>$healthLogDir/netStatus-$currentDay.log
 for n in $NETDEV
   do
     cd /tmp/healthCheck
@@ -287,7 +289,7 @@ fi
   
   ## kubelet健康端口检查
 kubeletCheckEndpoint=$(ss -tunlp|grep kubelet|grep 127.0.0.1|grep 102|awk '{print $5}')  
-kubeletCheckResult=$(curl $kubeletCheckEndpoint/healthz)
+kubeletCheckResult=$(curl -s $kubeletCheckEndpoint/healthz)
 if [[ $kubeletCheckResult == "ok" ]] ;then
   echo -e "[INFO]KUBELET_kubelet port health check passed\n"
 else
@@ -310,7 +312,7 @@ fi
   # 输出kube-proxy检查结果
 check_kube_proxy(){
   ## kube-proxy 健康端口检查
-kubeProxyCheckResult=$(curl 127.0.0.1:10249/healthz)
+kubeProxyCheckResult=$(curl -s 127.0.0.1:10249/healthz)
 if [[ $kubeProxyCheckResult == "ok" ]] ;then
   echo "[INFO]KUBE-PROXY_kube-proxy port health check passed"
 else
@@ -447,9 +449,9 @@ fi
 
 
 check_weaver_node(){
- curl  127.0.0.1:6784/status  1>weaver-status-$currentDay.txt
- curl  127.0.0.1:6784/status/connections 1>weaver-connections-$currentDay.txt
- curl  127.0.0.1:6784/ip |jq .  1>weaver-ip-$currentDay.txt
+ curl -s 127.0.0.1:6784/status  1>weaver-status-$currentDay.txt
+ curl -s  127.0.0.1:6784/status/connections 1>weaver-connections-$currentDay.txt
+ curl -s 127.0.0.1:6784/ip |jq .  1>weaver-ip-$currentDay.txt
  weaverStatus=$(cat weaver-status-$currentDay.txt |grep  Status|awk -F":| " '{print $NF}')
  if [[ $weaverStatus == "ready" ]]; then
    echo  -e "[INFO]WEAVER_weaver is ready in this node\n\n"
