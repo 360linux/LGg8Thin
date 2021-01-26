@@ -399,10 +399,10 @@ else
   timeDiffNum=$timeNUM
 fi  
 
-if [[ $(echo "$timeDiffNum" > "$maxTimeDiff"|bc) -eq 1  ]];then
+if [[ $(echo ""$timeDiffNum" > "$maxTimeDiff""|bc) -eq 1  ]];then
  echo -e "[ERROR]NTP_TIME:this node Time deviation is more than $maxTimeDiff s"
 else 
- echo -e "[INFO]NTP_TIME: this node Time Synchronize to source is OK"
+ echo -e "[INFO]NTP_TIME: this node Time Synchronize to source is OK，time deviation is $timeDiffNum $timeUnit "
 fi
 }
 
